@@ -1,6 +1,6 @@
 # libre-semif-rs
 
-This is Jev-like semantic decision service, inspired by [SemIf-OpenJev](https://github.com/TheoLeeCJ/SemIf-OpenJev). Prompt construction, row checks, and the JSONL record follow that project's direct mode (`direct-options-v1`, matching `encode_prompt` in `src/semif_phase1/direct.py`). This crate implements only that path through llama.cpp: Metal on Apple Silicon, and Vulkan or CPU on Linux x86_64.
+This is Jev-like semantic decision service, inspired by [SemIf-OpenJev](https://github.com/TheoLeeCJ/SemIf-OpenJev). The prompt layout and row checks are based on that project's direct mode. This crate implements only that path through llama.cpp: Metal on Apple Silicon, and Vulkan or CPU on Linux x86_64.
 
 `libre-semif-rs` reads JSONL decisions and writes a new JSONL of option probabilities. No answer text is generated.
 
@@ -59,9 +59,8 @@ cargo build --release --no-default-features --features cpu
 
 - `cli` — JSONL in, create-only JSONL out.
 - `loader` — pinned tokenizer and local GGUF, one llama.cpp context.
-- `prompt` — chat-template render and answer-slot checks (`direct-options-v1`).
+- `prompt` — chat-template render and answer-slot checks (`direct-options-v2`).
 - `engine` — last-position logits; no generated tokens.
 - `score` — slot logits, softmax, and the result record.
 - `row` — row validation and the direct-mode messages.
 - `gguf` — Qwen3 / Qwen3.5 architecture and file-type metadata only.
-- `pyjson` — Python-compatible JSON so prompt hashes stay aligned with SemIf-OpenJev.

@@ -10,7 +10,7 @@ env:
 
 jobs:
   test:
-    name: Linux CPU
+    name: Linux CPU build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

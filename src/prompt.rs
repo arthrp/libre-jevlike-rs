@@ -14,7 +14,7 @@ use tokenizers::Tokenizer;
 use crate::error::Error;
 use crate::row::{direct_messages, LETTERS};
 
-pub const PROMPT_VERSION: &str = "direct-options-v1";
+pub const PROMPT_VERSION: &str = "direct-options-v2";
 
 #[derive(Debug)]
 pub struct EncodedPrompt {

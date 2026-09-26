@@ -25,7 +25,6 @@ mod error;
 mod gguf;
 mod loader;
 mod prompt;
-mod pyjson;
 mod row;
 mod score;
 

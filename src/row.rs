@@ -1,6 +1,4 @@
 //! Row validation, the direct-mode prompt, and numeric helpers.
-//!
-//! Error strings match [`semif_phase1.core`](../../src/semif_phase1/core.py).
 
 use std::collections::HashSet;
 
@@ -8,7 +6,6 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 use crate::error::Error;
-use crate::pyjson;
 
 pub const LETTERS: &str = "ABCDEFGHIJKLMNOP";
 pub const DIRECT_SYSTEM: &str = "Apply the supplied criterion to the supplied evidence. Choose exactly one listed option. Respond with only its uppercase letter, with no explanation or reasoning.";
@@ -19,7 +16,7 @@ pub fn validate_row(row: &Value) -> Result<(), Error> {
     let Some(object) = row.as_object() else {
         return Err(Error::new(format!(
             "Row is missing fields: {}",
-            python_list(&REQUIRED)
+            REQUIRED.join(", ")
         )));
     };
     let missing: Vec<&str> = REQUIRED
@@ -29,7 +26,7 @@ pub fn validate_row(row: &Value) -> Result<(), Error> {
     if !missing.is_empty() {
         return Err(Error::new(format!(
             "Row is missing fields: {}",
-            python_list(&missing)
+            missing.join(", ")
         )));
     }
     for key in ["id", "question"] {
@@ -48,8 +45,6 @@ pub fn validate_row(row: &Value) -> Result<(), Error> {
             ))
         }
     }
-    pyjson::dumps(object.get("state").expect("state is present"))
-        .map_err(|_| Error::new("state must be finite JSON-compatible data"))?;
     let options = match object.get("options") {
         Some(Value::Array(items)) if (2..=LETTERS.chars().count()).contains(&items.len()) => items,
         _ => return Err(Error::new("options must contain 2-16 entries")),
@@ -92,7 +87,8 @@ pub fn direct_messages(row: &Value) -> Result<Vec<Value>, Error> {
     payload.insert("evidence".to_string(), object["state"].clone());
     payload.insert("criterion".to_string(), object["question"].clone());
     payload.insert("options".to_string(), Value::Array(rendered_options));
-    let content = pyjson::dumps(&Value::Object(payload))?;
+    let content = serde_json::to_string(&Value::Object(payload))
+        .map_err(|error| Error::new(format!("could not serialize prompt payload: {error}")))?;
     Ok(vec![
         message("system", DIRECT_SYSTEM),
         message("user", &content),
@@ -118,15 +114,6 @@ pub fn softmax(values: &[f64]) -> Result<Vec<f64>, Error> {
 
 pub fn digest(text: &str) -> String {
     hex::encode(Sha256::digest(text.as_bytes()))
-}
-
-fn python_list(items: &[&str]) -> String {
-    let inner = items
-        .iter()
-        .map(|item| format!("'{item}'"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("[{inner}]")
 }
 
 #[cfg(test)]
@@ -195,11 +182,20 @@ mod tests {
     }
 
     #[test]
-    fn missing_fields_use_python_list_repr() {
+    fn missing_fields_are_listed() {
         let error = validate_row(&json!({"id": "x"})).unwrap_err();
         assert_eq!(
             error.to_string(),
-            "Row is missing fields: ['options', 'question', 'state']"
+            "Row is missing fields: options, question, state"
+        );
+    }
+
+    #[test]
+    fn user_message_is_compact_json() {
+        let messages = direct_messages(&row()).unwrap();
+        assert_eq!(
+            messages[1]["content"].as_str().unwrap(),
+            r#"{"evidence":"owned evidence","criterion":"Which answer follows?","options":[{"letter":"A","description":"Yes."},{"letter":"B","description":"No."}]}"#
         );
     }
 
