@@ -20,6 +20,21 @@ libre-semif-rs \
 
 `--llama-threads` sets llama.cpp CPU threads. A remote `--model` needs a 40-character revision; a local directory needs a revision label and the tokenizer plus chat template.
 
+### REPL
+
+`--repl` reads JSON rows from stdin and prints a probability summary. `--input` and `--output` cannot be used with it. A row can be one line or pretty-printed across several lines; each value is scored as soon as it is complete. The model stays loaded until stdin ends.
+
+```bash
+libre-semif-rs \
+  --repl \
+  --mode direct \
+  --model Qwen/Qwen3.5-4B \
+  --revision <40-character-commit> \
+  --gguf /path/to/model.gguf
+```
+
+Each row prints one line per option, `option_id` then probability, highest first. Ctrl-D (or the end of a pipe) exits. Invalid JSON, a row that fails the usual checks, or a scoring error stops the process. llama.cpp's own logs are silenced in this mode. When stdin is a terminal, a prompt is written to stderr so stdout stays limited to the summary.
+
 Each input line is one row: `id`, `state` (nonempty string, object, or array), `question`, and 2–16 options with unique `id` and `description`.
 
 ```json
@@ -57,7 +72,7 @@ cargo build --release --no-default-features --features cpu
 
 ## Layout
 
-- `cli` — JSONL in, create-only JSONL out.
+- `cli` — JSONL in, create-only JSONL out, or `--repl` from stdin.
 - `loader` — pinned tokenizer and local GGUF, one llama.cpp context.
 - `prompt` — chat-template render and answer-slot checks (`direct-options-v2`).
 - `engine` — last-position logits; no generated tokens.
