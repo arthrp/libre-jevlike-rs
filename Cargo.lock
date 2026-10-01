@@ -1557,10 +1557,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "libre-semif-rs"
+name = "libre-jevlike-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "libre-jevlike-rs",
+ "serde_json",
+]
+
+[[package]]
+name = "libre-jevlike-rs"
+version = "0.1.0"
+dependencies = [
  "hex",
  "hf-hub",
  "llama-cpp-2",

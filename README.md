@@ -1,18 +1,22 @@
-# libre-semif-rs
+# libre-jevlike-rs
 
-This is Jev-like semantic decision service, inspired by [SemIf-OpenJev](https://github.com/TheoLeeCJ/SemIf-OpenJev). The prompt layout and row checks are based on that project's direct mode. This crate implements only that path through llama.cpp: Metal on Apple Silicon, and Vulkan or CPU on Linux x86_64.
+This is Jev-like semantic decision service, inspired by [SemIf-OpenJev](https://github.com/TheoLeeCJ/SemIf-OpenJev). The prompt layout and row checks are based on that project's direct mode. This workspace implements only that path through llama.cpp: Metal on Apple Silicon, and Vulkan or CPU on Linux x86_64.
 
-`libre-semif-rs` reads JSONL decisions and writes a new JSONL of option probabilities. No answer text is generated.
+`libre-jevlike-cli` reads JSONL decisions and writes a new JSONL of option probabilities. No answer text is generated. It calls the `libre-jevlike-rs` library.
 
 ## Usage
 
 On macOS the host must be Apple Silicon and every layer is offloaded to Metal. On Linux x86_64 the default build offloads every layer to Vulkan and refuses to run without a Vulkan GPU. A CPU-only Linux build runs every layer on the CPU. `--mode` accepts only `direct`. The output file must not already exist. Prompts are never truncated; `--max-tokens` (default 4096) is a hard limit.
 
+### Commit hash
+
+To get the 40-character-commit-hash, visit the respective hf repo, e.g. https://huggingface.co/Qwen/Qwen3.5-4B/commits/main for `Qwen3.5-4B`.
+
 ```bash
-libre-semif-rs \
+libre-jevlike-cli \
   --mode direct \
   --model Qwen/Qwen3.5-4B \
-  --revision <40-character-commit> \
+  --revision <40-character-commit-hash> \
   --gguf /path/to/model.gguf \
   --input decisions.jsonl \
   --output results.jsonl
@@ -25,11 +29,11 @@ libre-semif-rs \
 `--repl` reads JSON rows from stdin and prints a probability summary. `--input` and `--output` cannot be used with it. A row can be one line or pretty-printed across several lines; each value is scored as soon as it is complete. The model stays loaded until stdin ends.
 
 ```bash
-libre-semif-rs \
+libre-jevlike-cli \
   --repl \
   --mode direct \
   --model Qwen/Qwen3.5-4B \
-  --revision <40-character-commit> \
+  --revision <40-character-commit-hash> \
   --gguf /path/to/model.gguf
 ```
 
@@ -43,9 +47,26 @@ Each input line is one row: `id`, `state` (nonempty string, object, or array), `
 
 Each result line includes `probabilities`, `option_logits`, `prompt_sha256`, `prompt_version`, and model metadata (source, revision, GGUF checksum, backend). Probabilities are conditional on the declared options and uncalibrated as decision confidence.
 
+## Library
+
+`libre-jevlike-rs` scores one JSON row at a time. `load_model` pins the tokenizer and loads the GGUF; `Session::score` returns the same JSON object the CLI writes.
+
+```rust
+use std::path::Path;
+
+let mut session = libre_jevlike_rs::load_model(
+    "Qwen/Qwen3.5-4B",
+    "<40-character-commit-hash>",
+    Path::new("/path/to/model.gguf"),
+    None,
+    4096,
+)?;
+let result = session.score(&row, 4096)?;
+```
+
 ## Building
 
-macOS uses Metal. The `vulkan` and `cpu` features apply on Linux; a macOS build uses Metal either way.
+Build from the workspace root. macOS uses Metal. The `vulkan` and `cpu` features apply on Linux; a macOS build uses Metal either way. A release build writes `target/release/libre-jevlike-cli`.
 
 ```bash
 cargo build --release
@@ -72,10 +93,11 @@ cargo build --release --no-default-features --features cpu
 
 ## Layout
 
-- `cli` — JSONL in, create-only JSONL out, or `--repl` from stdin.
-- `loader` — pinned tokenizer and local GGUF, one llama.cpp context.
-- `prompt` — chat-template render and answer-slot checks (`direct-options-v2`).
-- `engine` — last-position logits; no generated tokens.
-- `score` — slot logits, softmax, and the result record.
-- `row` — row validation and the direct-mode messages.
-- `gguf` — Qwen3 / Qwen3.5 architecture and file-type metadata only.
+- `crates/libre-jevlike-cli` — JSONL in, create-only JSONL out, or `--repl` from stdin.
+- `crates/libre-jevlike-rs` — the library, imported as `libre_jevlike_rs`.
+  - `loader` — pinned tokenizer and local GGUF, one llama.cpp context.
+  - `prompt` — chat-template render and answer-slot checks (`direct-options-v2`).
+  - `engine` — last-position logits; no generated tokens.
+  - `score` — slot logits, softmax, and the result record.
+  - `row` — row validation and the direct-mode messages.
+  - `gguf` — Qwen3 / Qwen3.5 architecture and file-type metadata only.

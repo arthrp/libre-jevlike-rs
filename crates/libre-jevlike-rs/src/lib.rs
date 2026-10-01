@@ -19,7 +19,6 @@ compile_error!("enable exactly one of the vulkan and cpu features");
 ))]
 compile_error!("enable exactly one of the vulkan and cpu features");
 
-mod cli;
 mod engine;
 mod error;
 mod gguf;
@@ -28,6 +27,11 @@ mod prompt;
 mod row;
 mod score;
 
-pub use cli::run_from;
 pub use error::Error;
 pub use loader::{compiled_backend_name, load_model, Session};
+pub use row::validate_row;
+
+/// Silence llama.cpp's own logs so a caller can keep stdout limited to scores.
+pub fn silence_llama_logs() {
+    llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(false));
+}

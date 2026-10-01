@@ -1,20 +1,53 @@
 //! Create-only JSONL command line for direct scoring, plus a stdin REPL.
 
+use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead, BufReader, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::Parser;
+use libre_jevlike_rs::{load_model, silence_llama_logs, validate_row};
 use serde_json::Value;
 
-use crate::error::Error;
-use crate::loader::load_model;
-use crate::row::validate_row;
+/// A CLI failure. Usage failures exit 2. Runtime failures exit 1.
+#[derive(Debug)]
+struct Error {
+    message: String,
+    usage: bool,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl Error {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            usage: false,
+        }
+    }
+
+    fn usage(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            usage: true,
+        }
+    }
+}
+
+impl From<libre_jevlike_rs::Error> for Error {
+    fn from(error: libre_jevlike_rs::Error) -> Self {
+        Self::new(error.to_string())
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "libre-semif-rs",
+    name = "libre-jevlike-cli",
     about = "Score declared options from llama.cpp last-position logits"
 )]
 struct Args {
@@ -155,7 +188,7 @@ fn run_batch(args: &Args, threads: Option<i32>, max_tokens: u32) -> Result<(), E
 }
 
 fn run_repl(args: &Args, threads: Option<i32>, max_tokens: u32) -> Result<(), Error> {
-    llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(false));
+    silence_llama_logs();
     let mut session = load_model(&args.model, &args.revision, &args.gguf, threads, max_tokens)?;
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -165,7 +198,7 @@ fn run_repl(args: &Args, threads: Option<i32>, max_tokens: u32) -> Result<(), Er
     }
     repl_loop(stdin.lock(), stdout.lock(), interactive, |row| {
         validate_row(row)?;
-        session.score(row, max_tokens)
+        Ok(session.score(row, max_tokens)?)
     })
 }
 
@@ -261,7 +294,7 @@ mod tests {
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir =
-            std::env::temp_dir().join(format!("libre-semif-rs-{name}-{}", std::process::id()));
+            std::env::temp_dir().join(format!("libre-jevlike-cli-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -269,7 +302,7 @@ mod tests {
 
     fn base_args(dir: &std::path::Path, extra: &[&str]) -> Vec<String> {
         let mut args = vec![
-            "libre-semif-rs".to_string(),
+            "libre-jevlike-cli".to_string(),
             "--mode".to_string(),
             "direct".to_string(),
             "--model".to_string(),

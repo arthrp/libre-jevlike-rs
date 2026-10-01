@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use semif_score::{compiled_backend_name, load_model};
+use libre_jevlike_rs::{compiled_backend_name, load_model};
 use serde_json::json;
 
 #[test]
