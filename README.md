@@ -17,7 +17,7 @@ libre-jevlike-cli \
   --mode direct \
   --model Qwen/Qwen3.5-4B \
   --revision <40-character-commit-hash> \
-  --gguf /path/to/model.gguf \
+  --gguf models/Qwen_Qwen3.5-4B-Q4_K_M.gguf \
   --input decisions.jsonl \
   --output results.jsonl
 ```
@@ -34,7 +34,7 @@ libre-jevlike-cli \
   --mode direct \
   --model Qwen/Qwen3.5-4B \
   --revision <40-character-commit-hash> \
-  --gguf /path/to/model.gguf
+  --gguf models/Qwen_Qwen3.5-4B-Q4_K_M.gguf
 ```
 
 Each row prints one line per option, `option_id` then probability, highest first. Ctrl-D (or the end of a pipe) exits. Invalid JSON, a row that fails the usual checks, or a scoring error stops the process. llama.cpp's own logs are silenced in this mode. When stdin is a terminal, a prompt is written to stderr so stdout stays limited to the summary.
@@ -62,6 +62,22 @@ let mut session = libre_jevlike_rs::load_model(
     4096,
 )?;
 let result = session.score(&row, 4096)?;
+```
+
+## Snake example
+
+`examples/snake.rs` plays snake-app by scoring each move. Start the game in step mode so it sends a JSON state line and advances one tick per command. Each step asks the model to choose among the three directions that are not a reversal, then sends the highest-probability option (`l`, `r`, `u`, or `d`) to `127.0.0.1:5555`.
+
+```bash
+# terminal 1
+cd /Users/Shared/code/snake-app && npm start -- --tcp --step
+
+# terminal 2
+cargo run --release -p libre-jevlike-rs --example snake -- \
+  --model Qwen/Qwen3.5-4B \
+  --revision <40-character-commit-hash> \
+  --gguf models/Qwen_Qwen3.5-4B-Q4_K_M.gguf \
+  --games 3
 ```
 
 ## Building

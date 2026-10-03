@@ -1569,6 +1569,7 @@ dependencies = [
 name = "libre-jevlike-rs"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "hex",
  "hf-hub",
  "llama-cpp-2",
