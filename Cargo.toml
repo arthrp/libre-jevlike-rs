@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/libre-jevlike-rs", "crates/libre-jevlike-cli"]
+resolver = "2"

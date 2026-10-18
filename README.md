@@ -1,0 +1,121 @@
+# libre-jevlike-rs
+
+This is Jev-like semantic decision service, inspired by [SemIf-OpenJev](https://github.com/TheoLeeCJ/SemIf-OpenJev). The prompt layout and row checks are based on that project's direct mode. This workspace implements only that path through llama.cpp: Metal on Apple Silicon, and Vulkan or CPU on Linux x86_64.
+
+`libre-jevlike-cli` reads JSONL decisions and writes a new JSONL of option probabilities. No answer text is generated. It calls the `libre-jevlike-rs` library.
+
+## Usage
+
+On macOS the host must be Apple Silicon and every layer is offloaded to Metal. On Linux x86_64 the default build offloads every layer to Vulkan and refuses to run without a Vulkan GPU. A CPU-only Linux build runs every layer on the CPU. `--mode` accepts only `direct`. The output file must not already exist. Prompts are never truncated; `--max-tokens` (default 4096) is a hard limit.
+
+### Commit hash
+
+To get the 40-character-commit-hash, visit the respective hf repo, e.g. https://huggingface.co/Qwen/Qwen3.5-4B/commits/main for `Qwen3.5-4B`.
+
+```bash
+libre-jevlike-cli \
+  --mode direct \
+  --model Qwen/Qwen3.5-4B \
+  --revision <40-character-commit-hash> \
+  --gguf models/Qwen_Qwen3.5-4B-Q4_K_M.gguf \
+  --input decisions.jsonl \
+  --output results.jsonl
+```
+
+`--llama-threads` sets llama.cpp CPU threads. A remote `--model` needs a 40-character revision; a local directory needs a revision label and the tokenizer plus chat template.
+
+### REPL
+
+`--repl` reads JSON rows from stdin and prints a probability summary. `--input` and `--output` cannot be used with it. A row can be one line or pretty-printed across several lines; each value is scored as soon as it is complete. The model stays loaded until stdin ends.
+
+```bash
+libre-jevlike-cli \
+  --repl \
+  --mode direct \
+  --model Qwen/Qwen3.5-4B \
+  --revision <40-character-commit-hash> \
+  --gguf models/Qwen_Qwen3.5-4B-Q4_K_M.gguf
+```
+
+Each row prints one line per option, `option_id` then probability, highest first. Ctrl-D (or the end of a pipe) exits. Invalid JSON, a row that fails the usual checks, or a scoring error stops the process. llama.cpp's own logs are silenced in this mode. When stdin is a terminal, a prompt is written to stderr so stdout stays limited to the summary.
+
+Each input line is one row: `id`, `state` (nonempty string, object, or array), `question`, and 2–16 options with unique `id` and `description`.
+
+```json
+{"id":"route-1","state":"Customer cannot access an account after a password reset.","question":"Which queue should handle this request?","options":[{"id":"access","description":"Account access support."},{"id":"billing","description":"Billing support."}]}
+```
+
+Each result line includes `probabilities`, `option_logits`, `prompt_sha256`, `prompt_version`, and model metadata (source, revision, GGUF checksum, backend). Probabilities are conditional on the declared options and uncalibrated as decision confidence.
+
+## Library
+
+`libre-jevlike-rs` scores one JSON row at a time. `load_model` pins the tokenizer and loads the GGUF; `Session::score` returns the same JSON object the CLI writes.
+
+```rust
+use std::path::Path;
+
+let mut session = libre_jevlike_rs::load_model(
+    "Qwen/Qwen3.5-4B",
+    "<40-character-commit-hash>",
+    Path::new("/path/to/model.gguf"),
+    None,
+    4096,
+)?;
+let result = session.score(&row, 4096)?;
+```
+
+## Snake example
+
+`examples/snake.rs` plays snake-app by scoring each move. Start the game in step mode so it sends a JSON state line and advances one tick per command. Each step asks the model to choose among the three directions that are not a reversal, then sends the highest-probability option (`l`, `r`, `u`, or `d`) to `127.0.0.1:5555`.
+
+Get snake example from [https://github.com/arthrp/snake-app](https://github.com/arthrp/snake-app).
+
+```bash
+# terminal 1
+cd /tmp/snake-app && npm start -- --tcp --step
+
+# terminal 2
+cargo run --release -p libre-jevlike-rs --example snake -- \
+  --model Qwen/Qwen3.5-4B \
+  --revision <40-character-commit-hash> \
+  --gguf models/Qwen_Qwen3.5-4B-Q4_K_M.gguf \
+  --games 3
+```
+
+## Building
+
+Build from the workspace root. macOS uses Metal. The `vulkan` and `cpu` features apply on Linux; a macOS build uses Metal either way. A release build writes `target/release/libre-jevlike-cli`.
+
+```bash
+cargo build --release
+```
+
+Linux x86_64 uses Vulkan by default. That build needs CMake, a C++ toolchain, the Vulkan headers and loader, `glslc`, and libgomp:
+
+```bash
+cargo build --release
+```
+
+CPU-only, still with OpenMP. This build needs CMake, a C++ toolchain, and libgomp:
+
+```bash
+cargo build --release --no-default-features --features cpu
+```
+
+## Scoring
+
+1. Build a system message plus a user payload of evidence, criterion, and options labeled `A`–`P`.
+2. Render the checkpoint chat template and tokenize with the pinned Hugging Face tokenizer. Each letter must be one token that still appends cleanly. GGUF tokenization must match.
+3. One llama.cpp decode of the prompt, in 512-token chunks. Logits are requested only at the last position.
+4. Keep the logits for those letter slots, softmax them into probabilities, and record `allowed_token_mass` and `full_vocab_argmax_id`.
+
+## Layout
+
+- `crates/libre-jevlike-cli` — JSONL in, create-only JSONL out, or `--repl` from stdin.
+- `crates/libre-jevlike-rs` — the library, imported as `libre_jevlike_rs`.
+  - `loader` — pinned tokenizer and local GGUF, one llama.cpp context.
+  - `prompt` — chat-template render and answer-slot checks (`direct-options-v2`).
+  - `engine` — last-position logits; no generated tokens.
+  - `score` — slot logits, softmax, and the result record.
+  - `row` — row validation and the direct-mode messages.
+  - `gguf` — Qwen3 / Qwen3.5 architecture and file-type metadata only.

@@ -1,0 +1,17 @@
+[package]
+name = "libre-jevlike-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Direct option-logit scorer using llama.cpp"
+license = "MIT"
+publish = false
+
+[features]
+default = ["vulkan"]
+vulkan = ["libre-jevlike-rs/vulkan"]
+cpu = ["libre-jevlike-rs/cpu"]
+
+[dependencies]
+clap = { version = "=4.6.7", features = ["derive"] }
+libre-jevlike-rs = { path = "../libre-jevlike-rs", default-features = false }
+serde_json = { version = "=1.0.151", features = ["preserve_order"] }
