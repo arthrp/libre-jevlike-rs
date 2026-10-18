@@ -66,7 +66,7 @@ let result = session.score(&row, 4096)?;
 
 ## Snake example
 
-`examples/snake.rs` plays snake-app by scoring each move. Start the game in step mode so it sends a JSON state line and advances one tick per command. Each step asks the model to choose among the three directions that are not a reversal, then sends the highest-probability option (`l`, `r`, `u`, or `d`) to `127.0.0.1:5555`.
+`examples/snake.rs` plays snake-app by scoring each move. Start the game in step mode so it sends a JSON state line for every tick. Each step asks the model to choose among the three directions that are not a reversal. The highest-probability option (`l`, `r`, `u`, or `d`) is sent to `127.0.0.1:5555` only when it changes the snake's direction. A choice that keeps the current course sends nothing.
 
 Get snake example from [https://github.com/arthrp/snake-app](https://github.com/arthrp/snake-app).
 

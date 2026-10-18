@@ -2,7 +2,8 @@
 //!
 //! Start the game with `npm start -- --tcp --step`, then run this example.
 //! Each state line becomes one decision row. The highest-probability option
-//! is sent back as `l`, `r`, `u`, or `d`.
+//! is sent back as `l`, `r`, `u`, or `d` only when it changes the snake's
+//! direction. A choice that keeps the current course sends nothing.
 
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Write};
@@ -135,8 +136,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 let row = decision_row(&state, step)?;
                 let result = session.score(&row, args.max_tokens)?;
                 let (direction, summary) = chosen_direction(&result)?;
-                println!("step {step} {direction} {summary}");
-                send(&mut reader, &direction)?;
+                if direction == state.direction {
+                    println!("step {step} keep {direction} {summary}");
+                } else {
+                    println!("step {step} {direction} {summary}");
+                    send(&mut reader, &direction)?;
+                }
             }
             "waiting" | "over" | "won" => {
                 println!("{} score {}", state.status, state.score);
